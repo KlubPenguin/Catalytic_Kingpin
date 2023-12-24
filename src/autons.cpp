@@ -1,10 +1,7 @@
 #include "main.h"
-#include "numbers"
 #include "autons.hpp"
 
-const int DRIVE_SPEED = 110;
-const int TURN_SPEED  = 90;
-const int SWING_SPEED = 90;
+
 
 
 
@@ -15,10 +12,10 @@ const int SWING_SPEED = 90;
 // It's best practice to tune constants when the robot is empty and with heavier game objects, or with lifts up vs down.
 // If the objects are light or the cog doesn't change much, then there isn't a concern here.
 
-void blocker_constants(){
+void hang_constants(){
   chassis.set_slew_min_power(80, 80);
   chassis.set_slew_distance(7, 7);
-  chassis.set_pid_constants(&chassis.headingPID, 11, 0, 45, 0);
+  chassis.set_pid_constants(&chassis.headingPID, 15, 0, 45, 0);
   chassis.set_pid_constants(&chassis.forward_drivePID, 0.7, 0, 5, 0);
   chassis.set_pid_constants(&chassis.backward_drivePID, 0.7, 0, 5, 0);
   chassis.set_pid_constants(&chassis.turnPID, 8, 0.01, 60, 15);
@@ -31,11 +28,11 @@ void default_constants() {
   
   chassis.set_slew_min_power(80, 80);
   chassis.set_slew_distance(7, 7);
-  chassis.set_pid_constants(&chassis.headingPID, 11, 0, 35, 0);
-  chassis.set_pid_constants(&chassis.forward_drivePID, 0.45, 0, 5, 0);
-  chassis.set_pid_constants(&chassis.backward_drivePID, 0.45, 0, 5, 0);
-  chassis.set_pid_constants(&chassis.turnPID, 3.8, 0.003, 30, 15);
-  chassis.set_pid_constants(&chassis.swingPID, 3, 0, 10, 0);
+  chassis.set_pid_constants(&chassis.headingPID, 9, 0, 50, 0);
+  chassis.set_pid_constants(&chassis.forward_drivePID, 0.4, 0, 5.5, 0);
+  chassis.set_pid_constants(&chassis.backward_drivePID, 0.4, 0, 5.5, 0);
+  chassis.set_pid_constants(&chassis.turnPID, 4.4, 0.003, 30, 15);
+  chassis.set_pid_constants(&chassis.swingPID, 3.2, 0, 11, 0);
 
   
 }
@@ -43,19 +40,26 @@ void default_constants() {
 void small_error_constants(){
   chassis.set_slew_min_power(80, 80);
   chassis.set_slew_distance(7, 7);
-  chassis.set_pid_constants(&chassis.headingPID, 11, 0, 45, 0);
-  chassis.set_pid_constants(&chassis.forward_drivePID, 1.2, 0, 4, 0);
-  chassis.set_pid_constants(&chassis.backward_drivePID, 2, 0, 2, 0);
+  chassis.set_pid_constants(&chassis.headingPID, 9, 0, 50, 0);
+  chassis.set_pid_constants(&chassis.forward_drivePID, 1.2, 0.01, 6, 20);
+  chassis.set_pid_constants(&chassis.backward_drivePID, 1.2, 0.01, 6, 20);
   chassis.set_pid_constants(&chassis.turnPID, 8, 0.01, 60, 15);
-  chassis.set_pid_constants(&chassis.swingPID, 4, 0, 9, 0);
+  chassis.set_pid_constants(&chassis.swingPID, 8, 0, 9, 0);
 
 
 }
 
 void modified_exit_conditions(){
-  chassis.set_exit_condition(chassis.turn_exit,  100, 3,  100, 7,   100, 100);
+  chassis.set_exit_condition(chassis.turn_exit,  100, 60,  100, 7,   50, 100);
   chassis.set_exit_condition(chassis.swing_exit, 100, 3,  500, 7,   500, 500);
-  chassis.set_exit_condition(chassis.drive_exit, 80,  50, 300, 150, 200, 100);
+  chassis.set_exit_condition(chassis.drive_exit, 100,  50, 300, 150, 500, 500);
+
+}
+
+void ram_conditions(){
+  chassis.set_exit_condition(chassis.turn_exit,  100, 60,  100, 7,   50, 100);
+  chassis.set_exit_condition(chassis.swing_exit, 100, 3,  500, 7,   500, 500);
+  chassis.set_exit_condition(chassis.drive_exit, 100,  24, 100, 150, 100, 300);
 
 }
 
@@ -63,35 +67,72 @@ void odom(double wheelSize){
 
   const int ENCODER_TICKS = 360;
 
+  const double pi = 3.14159265358979323846;
+
   pros::ADIEncoder trackingWheel('A', 'B', false);
 
-  pros::ADIGyro inertial(3);
+  pros::Imu inertial(21);
 
-  double sectorLength;
+  double x = 0;
+  double y = 0;
+  double angle = 0;
 
+
+
+  double sectorLength, initialAngle, finalAngle, 
+    deltaTheta, avgAngle, lineSectorRatio, absLength;
 
   while(1){
+    //RESET SENSORS
+    trackingWheel.reset();
 
-    sectorLength = (double)  wheelSize * trackingWheel.get_value()/ENCODER_TICKS;
-
-
-
+    initialAngle = (double) (180 * inertial.get_rotation()/pi);
 
     pros::delay(5);  
+    //FINAL SENSOR VALUES
+    finalAngle = (double) (180 * inertial.get_rotation()/pi);
 
-    trackingWheel.reset();
+    //ANGULAR DIFFERENCE 
+    deltaTheta = finalAngle - initialAngle;
+    avgAngle = (finalAngle + initialAngle)/2.0;
+
+    //SECTOR LENGTH
+    sectorLength = (double)  (wheelSize * pi * ((double) (trackingWheel.get_value())/ENCODER_TICKS));
+
+    //LINE SECTOR RATIO
+    if(deltaTheta != 0){
+      lineSectorRatio = (pow(2 - 2 * cos(deltaTheta), 0.5)/deltaTheta);
+    } else {
+      lineSectorRatio = 1;
+    }
+    //ABSOLUTE DISTANCE
+    absLength = lineSectorRatio * sectorLength;
+
+    //POSITION  
+    y +=  absLength * sin(avgAngle) ;
+    x +=  absLength * cos(avgAngle);
+    angle = inertial.get_rotation();
+
+    pros::lcd::print(1, "X:%f", x); 
+    pros::lcd::print(2, "Y:%f", y); 
+    pros::lcd::print(3, "Angle:%f", angle);
+    pros::lcd::print(4, "Enocder:%d", trackingWheel.get_value());  
+    pros::lcd::print(5, "Delta Theta:%f", deltaTheta);  
+    
   }
 }
 
-void waitTimes(int interval){
+void waitTimes(){
   int totalTime = 0;
   int waitingTime = 0;
   while(1){
-    if(abs(chassis.right_velocity()) >= 5 || abs(chassis.left_velocity()) >= 5){
-      waitingTime += interval;
+    if(abs(chassis.right_velocity()) <= 25 && abs(chassis.left_velocity()) <= 25){
+      waitingTime += 20;
     }
-    totalTime += interval;
-    pros::delay(interval);
+    totalTime += 20;
+    pros::lcd::print(7, "Pct Waiting:%f", static_cast<double>(waitingTime)); 
+    pros::delay(20);
+    
   }
 }
 
@@ -115,27 +156,19 @@ maxLeft = maxLeft;
 pros::lcd::print(6, "IMU: %f", chassis.get_gyro());
 pros::lcd::print(4, "Left Veer:%f", maxLeft);
 pros::lcd::print(5, "Right Veer:%f", maxRight);
+pros::lcd::print(3, "Distance: %f", (chassis.right_sensor() / chassis.get_tick_per_inch()));
 pros::delay(20);
 }
 }
 
-void testingPID(){
-  default_constants();
-  pros::Task inTime(waitTimes);
-  string results = "Exp: 40 ";
-  pros::lcd::print(1, "%s" , results);
 
-
-  chassis.set_drive_pid(40, DRIVE_SPEED, true);
-
-}
 
 
 
 
 
 void intakeFWDSpin(){
-pros::Motor intake(-14);
+pros::Motor intake(-5);
 while(1){
 if(abs((chassis.right_velocity())) >= 5 || abs(chassis.left_velocity()) >= 5){
  intake = 127; 
@@ -146,22 +179,22 @@ pros::delay(20);
 }
 }
 
-int blockerUp(){
-pros::ADIDigitalOut blocker('G');
-blocker.set_value(true);
+int hangUp(){
+pros::ADIDigitalOut hang('E');
+hang.set_value(true);
 return(0);
 }
 
 
-int blockerDown(){
-pros::ADIDigitalOut blocker('G');
-blocker.set_value(false);
+int hangDown(){
+pros::ADIDigitalOut hang('E');
+hang.set_value(false);
 return(0);
 }
 
 
 int wingsIn(){
-pros::ADIDigitalOut leftWing('F');
+pros::ADIDigitalOut leftWing('C');
 pros::ADIDigitalOut rightWing('H');
 leftWing.set_value(false);
 rightWing.set_value(false);
@@ -175,13 +208,13 @@ return(0);
 }
 
 int leftWingIn(){
-pros::ADIDigitalOut leftWing('F');
+pros::ADIDigitalOut leftWing('C');
 leftWing.set_value(false);
 return(0);  
 }
 
 int wingsOut(){
-pros::ADIDigitalOut leftWing('F');
+pros::ADIDigitalOut leftWing('C');
 pros::ADIDigitalOut rightWing('H');
 leftWing.set_value(true);
 rightWing.set_value(true);
@@ -195,13 +228,53 @@ return(0);
 }
 
 int leftWingOut(){
-pros::ADIDigitalOut leftWing('F');
+pros::ADIDigitalOut leftWing('C');
 leftWing.set_value(true);
 return(0);  
 }
 
+int backWingsIn(){
+pros::ADIDigitalOut backLeftWing('D');
+pros::ADIDigitalOut rightWing('G');
+backLeftWing.set_value(false);
+rightWing.set_value(false);
+return(0);
+}
+
+int backRightWingIn(){
+pros::ADIDigitalOut rightWing('G');
+rightWing.set_value(false);
+return(0);  
+}
+
+int backLeftWingIn(){
+pros::ADIDigitalOut backLeftWing('D');
+backLeftWing.set_value(false);
+return(0);  
+}
+
+int backWingsOut(){
+pros::ADIDigitalOut backLeftWing('D');
+pros::ADIDigitalOut rightWing('G');
+backLeftWing.set_value(true);
+rightWing.set_value(true);
+return(0);
+}
+
+int backRightWingOut(){
+pros::ADIDigitalOut rightWing('G');
+rightWing.set_value(true);
+return(0);  
+}
+
+int backLeftWingOut(){
+pros::ADIDigitalOut backLeftWing('D');
+backLeftWing.set_value(true);
+return(0);  
+}
+
 void intakeBACKSpin(){
-pros::Motor intake(-14);
+pros::Motor intake(-5);
 while(1){
 if(abs((chassis.right_velocity())) >= 40 || abs(chassis.left_velocity()) >= 40){
  intake = -127; 
@@ -214,7 +287,7 @@ pros::delay(20);
 
 
 void intakeSpin(int distance, string direction){
-pros::Motor intake(-14);
+pros::Motor intake(-5);
 intake.set_zero_position(0);
 while(abs(intake.get_position()) < distance){
 if(direction == "fwd"){
@@ -232,8 +305,8 @@ intake = 0;
 
 
 int catapultLower(){
-pros::Motor catapult(-6);
-pros::Rotation cataRotation(16);
+pros::Motor catapult(-1);
+pros::Rotation cataRotation(12);
 int clock = 0;
 pros::lcd::print(6, "Clock: %d",  clock);
 pros::lcd::print(5, "Catapult: %d",  cataRotation.get_angle()/100);
@@ -255,8 +328,8 @@ return(0);
 
 void catapultFire(int shots){
 pros::Distance cataDistance(17);
-pros::Motor catapult(-6);
-pros::Rotation cataRotation(16);
+pros::Motor catapult(-1);
+pros::Rotation cataRotation(12);
 int fired = 0;
 int clock = 420;
 string catapultSetting = "delay";
@@ -282,90 +355,14 @@ catapult = 0;
 }
 
 void catapultInfiniteFire(){
-pros::Motor catapult(-6);
+pros::Motor catapult(-1);
 
 while(1){
 catapult = 90;
 }
 }
-void wpLoadingSide(){
-
-//START CODE, WINGS IN, BLOCKER DOWN, INTAKE SPINNING, ORIENTED -54 DEGREES
-
-wingsIn();
-pros::lcd::print(4, "Started");
-blocker_constants();
-chassis.set_angle(155);
-pros::Task intakeKeep(intakeFWDSpin);
 
 
-
-
-//DRIVE UP TO GOAL
-chassis.set_drive_pid(-40, DRIVE_SPEED, true);
-chassis.wait_drive();
-intakeKeep.suspend();
-
-//HEAD TO LOADING BAR
-chassis.set_drive_pid(18, DRIVE_SPEED, true);
-chassis.wait_drive();
-
-chassis.set_turn_pid(-45, TURN_SPEED);
-chassis.wait_drive();
-
-
-//TAKE TRIBALL OUT OF LOADING BAR
-chassis.set_drive_pid(4, DRIVE_SPEED, true);
-chassis.wait_drive();
-
-leftWingOut();
-
-chassis.set_drive_pid(-13, DRIVE_SPEED, true);
-chassis.wait_drive();
-
-chassis.set_swing_pid(LEFT_SWING, -90, SWING_SPEED);
-chassis.wait_drive();
-
-chassis.set_drive_pid(1.5, DRIVE_SPEED, true);
-chassis.wait_drive();
-
-leftWingIn();
-
-//HEAD TOWARDS HANGING BAR
-pros::Task intakeRev2(intakeBACKSpin);
-chassis.set_turn_pid(-240, TURN_SPEED);
-chassis.wait_drive();
-
-chassis.set_drive_pid(13, DRIVE_SPEED, true);
-chassis.wait_drive();
-
-chassis.set_turn_pid(-270, TURN_SPEED);
-chassis.wait_drive();
-intakeRev2.suspend();
-
-chassis.set_drive_pid(31, DRIVE_SPEED, true);
-chassis.wait_drive();
-
-
-
-
-
-
-intakeSpin(200, "back");
-blockerUp();
-//chassis.set_swing_pid(LEFT_SWING, 90, SWING_SPEED);
-//chassis.wait_drive();
-
-
-
-//wingsIn();
-
-
-
-
-pros::lcd::print(4, "Finished WP Loading Side");
-
-}
 
 
 
@@ -374,7 +371,7 @@ void farSide(){
 
 wingsIn();
 pros::lcd::print(4, "Started");
-blocker_constants();
+hang_constants();
 chassis.set_angle(45);
 
 catapultLower(); 
@@ -672,7 +669,7 @@ pros::lcd::print(4, "Finished Skills");
 
 void far6ball(){
 
-  //START INTAKING, BLOCKER DOWN, TO THE LEFT
+  //START INTAKING, hang DOWN, TO THE LEFT
   default_constants();
   chassis.set_angle(-90);
   pros::Task intakeKeep(intakeFWDSpin);
@@ -779,7 +776,7 @@ void far6ball(){
   chassis.set_turn_pid(-180, TURN_SPEED);
   chassis.wait_drive();
 
-  blockerUp();
+  hangUp();
 
   intakeSpin(0, "fwd");
 }
@@ -787,7 +784,7 @@ void far6ball(){
 
 void far6ball2(){
 
-  //START INTAKING, BLOCKER DOWN, TO THE LEFT
+  //START INTAKING, hang DOWN, TO THE LEFT
   default_constants();
   modified_exit_conditions();
   chassis.set_angle(-90);
@@ -904,7 +901,7 @@ void far6ball2(){
   chassis.set_turn_pid(-180, TURN_SPEED);
   chassis.wait_drive();
 
- // blockerUp();
+ // hangUp();
 
   intakeSpin(0, "fwd");
 
@@ -913,7 +910,7 @@ void far6ball2(){
 void far6ball3(){
 
 
-  //START INTAKING, BLOCKER DOWN, TO THE LEFT
+  //START INTAKING, hang DOWN, TO THE LEFT
   default_constants();
   modified_exit_conditions();
   chassis.set_angle(-90);
@@ -1037,7 +1034,7 @@ modified_exit_conditions();
 
 wingsIn();
 pros::lcd::print(4, "Started");
-blocker_constants();
+hang_constants();
 chassis.set_angle(45);
 
 catapultLower(); 
@@ -1142,7 +1139,7 @@ chassis.wait_drive();
 
 pros::Task intakeRev2(intakeBACKSpin);
 
-blocker_constants();
+hang_constants();
 chassis.set_exit_condition(chassis.drive_exit, 80,  50, 300, 150, 100, 100);
 
 pros::delay(250);
@@ -1182,7 +1179,7 @@ modified_exit_conditions();
 
 wingsIn();
 pros::lcd::print(4, "Started");
-blocker_constants();
+hang_constants();
 
 chassis.set_angle(-35);
 catapultLower();
@@ -1264,7 +1261,7 @@ chassis.wait_drive();
 chassis.set_turn_pid(210, TURN_SPEED);
 chassis.wait_drive();
 
-blocker_constants();
+hang_constants();
 
 
 chassis.set_drive_pid(-24, DRIVE_SPEED, true);
@@ -1293,7 +1290,7 @@ pros::lcd::print(4, "Finished 5-Ball");
 
 void far3Ball(){
 
-  //START INTAKING, BLOCKER DOWN, TO THE LEFT
+  //START INTAKING, hang DOWN, TO THE LEFT
   default_constants();
   chassis.set_angle(-90);
   pros::Task intakeKeep(intakeFWDSpin);
@@ -1370,8 +1367,8 @@ void drive_example() {
   double avgPosition;
 
   double deviation;
-  catapultLower();
-  catapultFire(44);
+  //catapultLower();
+  //catapultFire(44);
 
 //skills();
 
@@ -1403,19 +1400,116 @@ void drive_example() {
 
 //ROBOT CONTRACTED
 
+
+
+
+
+
+
+  /*
+  avgPosition = 0.5 * ((chassis.right_sensor() / chassis.get_tick_per_inch()) + (chassis.left_sensor() / chassis.get_tick_per_inch()));
+  */
+  default_constants();
+  pros::Task imu(imuChecker);
+  pros::Task wait(waitTimes);
+  ram_conditions();
+
+  pros::Task intakeOut(intakeBACKSpin);
+  chassis.set_drive_pid(24, DRIVE_SPEED, true);
+  chassis.wait_drive();
+
+  chassis.set_drive_pid(-12, DRIVE_SPEED, true);
+  chassis.wait_drive();
+  intakeOut.suspend();
+  intakeSpin(0, "fwd");
+
 /*
+  chassis.set_drive_pid(24, DRIVE_SPEED, true);
+  chassis.wait_drive();
+
+small_error_constants();
+
+  chassis.set_drive_pid(6, DRIVE_SPEED, true);
+  chassis.wait_drive();
+
+  chassis.set_drive_pid(-6, DRIVE_SPEED, true);
+  chassis.wait_drive();
+
+  
+
 default_constants();
 
+  chassis.set_drive_pid(-24, DRIVE_SPEED, true);
+  chassis.wait_drive();
 
+small_error_constants();
 
+  chassis.set_drive_pid(6, DRIVE_SPEED, true);
+  chassis.wait_drive();
 
+  chassis.set_turn_pid(10, TURN_SPEED);
+  chassis.wait_drive();
 
+default_constants();
 
-  avgPosition = 0.5 * ((chassis.right_sensor() / chassis.get_tick_per_inch()) + (chassis.left_sensor() / chassis.get_tick_per_inch()));
-  pros::Task imu(imuChecker);
   chassis.set_drive_pid(12, DRIVE_SPEED, true);
   chassis.wait_drive();
+
+small_error_constants();
+
+  chassis.set_turn_pid(-35, TURN_SPEED);
+  chassis.wait_drive();
+
+
+
+  chassis.set_turn_pid(-45, TURN_SPEED);
+  chassis.wait_drive();
+
+default_constants();
+
+  chassis.set_drive_pid(12, DRIVE_SPEED, true);
+  chassis.wait_drive(); 
+
+  chassis.set_turn_pid(45, TURN_SPEED);
+  chassis.wait_drive();
+
+  small_error_constants();
+
+  chassis.set_drive_pid(6, DRIVE_SPEED, true);
+  chassis.wait_drive(); 
+
+default_constants();
+
+  chassis.set_turn_pid(-135, TURN_SPEED);
+  chassis.wait_drive();
+
+  chassis.set_swing_pid(LEFT_SWING, -45, SWING_SPEED);
+  chassis.wait_drive();  
+
+small_error_constants();
+
+  chassis.set_turn_pid(-55, TURN_SPEED);
+  chassis.wait_drive();
+
+default_constants();
+
+  chassis.set_swing_pid(LEFT_SWING, 135, SWING_SPEED);
+  chassis.wait_drive();  
+
+small_error_constants();
+
+  chassis.set_swing_pid(RIGHT_SWING, 90,  SWING_SPEED);
+  chassis.wait_drive();
+
+  chassis.set_swing_pid(LEFT_SWING, 80, SWING_SPEED);
+  chassis.wait_drive(); 
+*/
+
+
+
   imu.suspend();
+  wait.suspend();
+  /*
   avgPosition = 0.5 * ((chassis.right_sensor() / chassis.get_tick_per_inch()) + (chassis.left_sensor() / chassis.get_tick_per_inch())) - avgPosition;
   deviation = (chassis.right_sensor() / chassis.get_tick_per_inch()) - avgPosition; 
   pros::lcd::print(1, "Position:%f", avgPosition);

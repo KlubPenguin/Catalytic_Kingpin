@@ -12,44 +12,44 @@
 Drive chassis (
   // Left Chassis Ports (negative port will reverse it!)
   //   the first port is the sensored port (when trackers are not used!)
-  {-18, -19, 20}
+  {-6, 4, -2}
 
   // Right Chassis Ports (negative port will reverse it!)
   //   the first port is the sensored port (when trackers are not used!)
-  ,{13, 11, -12}
+  ,{16, -14, 13}
 
   // IMU Port
-  ,1
+  ,21
 
   // Wheel Diameter (Remember, 4" wheels are actually 4.125!)
   //    (or tracking wheel diameter)
-  ,3.25
+  ,2.75
 
   // Cartridge RPM
   //   (or tick per rotation if using tracking wheels)
-  ,600
+  ,360
 
   // External Gear Ratio (MUST BE DECIMAL)
   //    (or gear ratio of tracking wheel)
   // eg. if your drive is 84:36 where the 36t is powered, your RATIO would be 2.333.
   // eg. if your drive is 36:60 where the 60t is powered, your RATIO would be 0.6.
-  ,1.3333
+  ,1.0
 
 
   // Uncomment if using tracking wheels
-  /*
+  
   // Left Tracking Wheel Ports (negative port will reverse it!)
-  // ,{1, 2} // 3 wire encoder
+   ,{1, 2} // 3 wire encoder
   // ,8 // Rotation sensor
 
   // Right Tracking Wheel Ports (negative port will reverse it!)
-  // ,{-3, -4} // 3 wire encoder
+   ,{1, 2} // 3 wire encoder
   // ,-9 // Rotation sensor
-  */
+  
 
   // Uncomment if tracking wheels are plugged into a 3 wire expander
   // 3 Wire Port Expander Smart Port
-  // ,1
+  //,1
 );
 
 
@@ -61,8 +61,8 @@ Drive chassis (
  * All other competition modes are blocked by initialize; it is recommended
  * to keep execution time for this mode under a few seconds.
  */
-
-  pros::ADIDigitalOut leftWing('F');
+//D BACK RIGHT, FRONT RIGHT G, LEFT FRONT C, BACK LEFT D, HANG F
+  pros::ADIDigitalOut leftWing('C');
   bool leftWingLock = 0;
   int leftWingMode = 0;
 
@@ -70,10 +70,17 @@ Drive chassis (
   bool rightWingLock = 0;
   int rightWingMode = 0;
 
-  pros::Motor catapult(-6);
+  pros::ADIDigitalOut backLeftWing('D');
+  bool backLeftWingLock = 0;
+  int backLeftWingMode = 0;
+
+  pros::ADIDigitalOut backRightWing('G');
+  bool backRightWingLock = 0;
+  int backRightWingMode = 0;
+
+  pros::Motor catapult(-1);
   int cataStart = 0;
-  pros::ADIDigitalIn cataSwitch('C');
-  pros::Rotation cataRotation(16);
+  pros::Rotation cataRotation(12);
   pros::Distance cataDistance(17);
   int autoLock = 0;
   int semiAutoLock = 0;
@@ -112,16 +119,20 @@ void initialize() {
   // chassis.set_right_curve_buttons(pros::E_CONTROLLER_DIGITAL_Y,    pros::E_CONTROLLER_DIGITAL_A);
 
   // Autonomous Selector using LLEMU
+  
+  
   /*
   ez::as::auton_selector.add_autons({
     //Auton("Example Drive\n\nDrive forward and come back.", drive_example),
   });
   */
+ 
  ez::as::auton_selector.add_autons({
+    Auton("Loading Side Win Point: 155", wpLoadingSide),
     Auton("Far Side Six Ball: -90", far6ball3),
-    Auton("Loading Side Win Point: 126", wpLoadingSide),
     Auton("Skills: -135", skills),
   });
+  
   // Initialize chassis and auton selector
   chassis.initialize();
 
@@ -131,7 +142,7 @@ void initialize() {
   chassis.imu_calibrate();
 pros::Task imuPrint(imuPrinter);
 }
-
+//
 /**
  * Runs while the robot is in the disabled state of Field Management System or
  * the VEX Competition Switch, following either autonomous or opcontrol. When
@@ -164,12 +175,12 @@ void competition_initialize() {}
  * will be stopped. Re-enabling the robot will restart the task, not re-start it
  * from where it left off.
  */
-int blockerClock = 0;
+int hangClock = 0;
 int cataClock = 0;
 void clockFXN(int delay){
 pros::delay(delay); // This is used for timer calculations!  Keep this ez::util::DELAY_TIME
 cataClock = cataClock + delay;
-blockerClock = blockerClock + delay;
+hangClock = hangClock + delay;
 }
 
 void autonomous() {
@@ -208,53 +219,53 @@ void autonomous() {
 
 
 
-  pros::ADIDigitalOut blocker('G');
-  bool blockerLock = 0;
-  bool blockerMode = 0;
+  pros::ADIDigitalOut hang('F');
+  bool hangLock = 0;
+  bool hangMode = 0;
 //true is up
-  int blockerStage = 1;
-void blockerFXN(int delay){
-/*if(((master.get_digital(DIGITAL_Y)) || (blockerStage == 2)) && (blockerLock == 0)){
+  int hangStage = 1;
+void hangFXN(int delay){
+/*if(((master.get_digital(DIGITAL_Y)) || (hangStage == 2)) && (hangLock == 0)){
 
-if(blockerStage == 1){
-blocker.set_value(false);
-blockerClock = 0;
-blockerStage = 2;
+if(hangStage == 1){
+hang.set_value(false);
+hangClock = 0;
+hangStage = 2;
 
 
-} else if ((blockerStage == 2)  && (blockerClock > delay)){
-blocker.set_value(true);
-blockerStage = 1;
-blockerLock = 1;
+} else if ((hangStage == 2)  && (hangClock > delay)){
+hang.set_value(true);
+hangStage = 1;
+hangLock = 1;
 } 
 }
 
 
-if ((!master.get_digital(DIGITAL_Y)) && (blockerLock == 1)){
-blockerLock = 0;
+if ((!master.get_digital(DIGITAL_Y)) && (hangLock == 1)){
+hangLock = 0;
 
 }
 
 */
 /*
-if((master.get_digital(DIGITAL_Y)) && (blockerLock) == 0 && (blockerMode == 0)){
-blockerMode = 1;
-blocker.set_value(true);
-} else if (master.get_digital(DIGITAL_Y) && (blockerLock == 0) && (blockerMode == 1)){
-blockerMode = 0;
-blocker.set_value(false);
+if((master.get_digital(DIGITAL_Y)) && (hangLock) == 0 && (hangMode == 0)){
+hangMode = 1;
+hang.set_value(true);
+} else if (master.get_digital(DIGITAL_Y) && (hangLock == 0) && (hangMode == 1)){
+hangMode = 0;
+hang.set_value(false);
 }
 
 if(master.get_digital(DIGITAL_Y)){
-blockerLock = 1;
+hangLock = 1;
 } else{
-blockerLock = 0;
+hangLock = 0;
 }
 
 
 
-if ((!master.get_digital(DIGITAL_Y)) && (blockerLock == 1)){
-blockerLock = 0;
+if ((!master.get_digital(DIGITAL_Y)) && (hangLock == 1)){
+hangLock = 0;
 
 }
 */
@@ -263,74 +274,6 @@ blockerLock = 0;
 
 
 
-void wings(string matchType){
-if(matchType == "regular"){
-//LEFT WING 
-
-if((master.get_digital(DIGITAL_RIGHT) || master.get_digital(DIGITAL_DOWN)) && (leftWingLock) == 0 && (leftWingMode == 0)){
-leftWingMode = 1;
-leftWing.set_value(true);
-} else if ((master.get_digital(DIGITAL_RIGHT) || master.get_digital(DIGITAL_DOWN)) && (leftWingLock == 0) && (leftWingMode == 1)){
-leftWingMode = 0;
-leftWing.set_value(false);
-}
-
-if(master.get_digital(DIGITAL_RIGHT) || master.get_digital(DIGITAL_DOWN)){
-leftWingLock = 1;
-} else{
-leftWingLock = 0;
-}
-
-
-//RIGHT WING
-if((master.get_digital(DIGITAL_LEFT) || master.get_digital(DIGITAL_DOWN)) && (rightWingLock) == 0 && (rightWingMode == 0)){
-rightWingMode = 1;
-rightWing.set_value(true);
-} else if ((master.get_digital(DIGITAL_LEFT) || master.get_digital(DIGITAL_DOWN)) && (rightWingLock == 0) && (rightWingMode == 1)){
-rightWingMode = 0;
-rightWing.set_value(false);
-}
-
-if(master.get_digital(DIGITAL_LEFT) || master.get_digital(DIGITAL_DOWN)){
-rightWingLock = 1;
-} else{
-rightWingLock = 0;
-}
-
-} else if(matchType == "skills"){
-//LEFT WING 
-
-if((master.get_digital(DIGITAL_LEFT) || master.get_digital(DIGITAL_DOWN)) && (leftWingLock) == 0 && (leftWingMode == 0)){
-leftWingMode = 1;
-leftWing.set_value(true);
-} else if ((master.get_digital(DIGITAL_LEFT) || master.get_digital(DIGITAL_DOWN)) && (leftWingLock == 0) && (leftWingMode == 1)){
-leftWingMode = 0;
-leftWing.set_value(false);
-}
-
-if(master.get_digital(DIGITAL_LEFT) || master.get_digital(DIGITAL_DOWN)){
-leftWingLock = 1;
-} else{
-leftWingLock = 0;
-}
-
-
-//RIGHT WING
-if((master.get_digital(DIGITAL_RIGHT) || master.get_digital(DIGITAL_DOWN)) && (rightWingLock) == 0 && (rightWingMode == 0)){
-rightWingMode = 1;
-rightWing.set_value(true);
-} else if ((master.get_digital(DIGITAL_RIGHT) || master.get_digital(DIGITAL_DOWN)) && (rightWingLock == 0) && (rightWingMode == 1)){
-rightWingMode = 0;
-rightWing.set_value(false);
-}
-
-if(master.get_digital(DIGITAL_RIGHT) || master.get_digital(DIGITAL_DOWN)){
-rightWingLock = 1;
-} else{
-rightWingLock = 0;
-}
-}
-}
 
 
 
@@ -342,7 +285,8 @@ rightWingLock = 0;
 
 
 
-pros::Motor intake(-14);
+
+pros::Motor intake(5);
 bool downIntakeLock = 0;
 bool upIntakeLock = 0;
 int intakeSpeed = 0;
@@ -364,14 +308,14 @@ intake = 127 * intakeSpeed;
 int latVolts = 0;
 int turnVolts = 0;
 
-  pros::Motor frontLeft(-18);
-  pros::Motor midLeft(-19);
-  pros::Motor backLeft(20);
+  pros::Motor frontLeft(-6);
+  pros::Motor midLeft(4);
+  pros::Motor backLeft(-2);
   pros::Motor_Group leftMotors({frontLeft, midLeft, backLeft});
 
-  pros::Motor frontRight(13);
-  pros::Motor midRight(11);
-  pros::Motor backRight(-12);
+  pros::Motor frontRight(16);
+  pros::Motor midRight(-14);
+  pros::Motor backRight(13);
   pros::Motor_Group rightMotors({frontRight, midRight, backRight});
 
 int rightSpeed;
@@ -416,7 +360,7 @@ int turnVolts = 0;
 catapultMode = "loading";
 leftWing.set_value(false);
 rightWing.set_value(false);
-blockerDown();
+hangDown();
 	while (true) {
 
 if(catapultMode == "setfire"){
@@ -468,18 +412,19 @@ intakeSpeed = 0;
 }
 */
 
-if((master.get_digital(DIGITAL_B)) && (blockerLock) == 0 && (blockerMode == 0)){
-blockerMode = 1;
-blocker.set_value(true);
-} else if ((master.get_digital(DIGITAL_B)) && (blockerLock == 0) && (blockerMode == 1)){
-blockerMode = 0;
-blocker.set_value(false);
+if((master.get_digital(DIGITAL_X)) && (hangLock) == 0 && (hangMode == 0)){
+hangMode = 1;
+hang.set_value(true);
+} else if ((master.get_digital(DIGITAL_X)) && (hangLock == 0) && (hangMode == 1)){
+hangMode = 0;
+hang.set_value(false);
 }
 
-if(master.get_digital(DIGITAL_B)){
-blockerLock = 1;
+if(master.get_digital(DIGITAL_X)){
+hangLock = 1;
 } else{
-blockerLock = 0;
+
+hangLock = 0;
 }
 
 
@@ -516,8 +461,72 @@ leftMotors = leftSpeed;
 
 
 
-wings("regular");
 
+//LEFT WING 
+
+if(master.get_digital(DIGITAL_B) && (leftWingLock) == 0 && (leftWingMode == 0)){
+leftWingMode = 1;
+leftWing.set_value(true);
+} else if (master.get_digital(DIGITAL_B) && (leftWingLock == 0) && (leftWingMode == 1)){
+leftWingMode = 0;
+leftWing.set_value(false);
+}
+
+if(master.get_digital(DIGITAL_B)){
+leftWingLock = 1;
+} else{
+leftWingLock = 0;
+}
+
+
+//RIGHT WING
+if(master.get_digital(DIGITAL_Y)&& (rightWingLock) == 0 && (rightWingMode == 0)){
+rightWingMode = 1;
+rightWing.set_value(true);
+} else if (master.get_digital(DIGITAL_Y)  && (rightWingLock == 0) && (rightWingMode == 1)){
+rightWingMode = 0;
+rightWing.set_value(false);
+}
+
+if(master.get_digital(DIGITAL_Y)){
+rightWingLock = 1;
+} else{
+rightWingLock = 0;
+}
+
+
+
+//LEFT WING 
+
+if(master.get_digital(DIGITAL_DOWN) && (backLeftWingLock) == 0 && (backLeftWingMode == 0)){
+backLeftWingMode = 1;
+backLeftWing.set_value(true);
+} else if (master.get_digital(DIGITAL_DOWN) && (backLeftWingLock == 0) && (backLeftWingMode == 1)){
+backLeftWingMode = 0;
+backLeftWing.set_value(false);
+}
+
+if(master.get_digital(DIGITAL_DOWN)){
+backLeftWingLock = 1;
+} else{
+backLeftWingLock = 0;
+}
+
+
+//RIGHT WING
+if(master.get_digital(DIGITAL_RIGHT)&& (backRightWingLock) == 0 && (backRightWingMode == 0)){
+backRightWingMode = 1;
+backRightWing.set_value(true);
+} else if (master.get_digital(DIGITAL_RIGHT)  && (backRightWingLock == 0) && (backRightWingMode == 1)){
+backRightWingMode = 0;
+backRightWing.set_value(false);
+}
+
+if(master.get_digital(DIGITAL_RIGHT)){
+backRightWingLock = 1;
+} else{
+backRightWingLock = 0;
+}
 
 intakeFXN();
 
@@ -527,19 +536,16 @@ intakeFXN();
 
 if(cataStart == 0){
  
-if(cataRotation.get_angle()/100 >= 100){
+if(cataRotation.get_angle()/100 >= 80){
 catapultMode = "resetting";
-} else if((cataRotation.get_angle()/100 <=85) && (cataRotation.get_angle()/100 <= 100)){
-catapultMode = "loading";
-cataStart = 1;
-} else{
+}else{
 
 catapultMode = "loading";
 cataStart = 1;
 }} else if (cataStart == 1){
-if(catapultMode == "loading" && (master.get_digital(DIGITAL_R2))){
+/* if(catapultMode == "loading" && (master.get_digital(DIGITAL_R2))){
 catapultMode = "resetting";
-} else if ((catapultMode == "resetting")  && ((cataRotation.get_angle()/100) < 100) && (cataClock > 200)) {
+} else */ if ((catapultMode == "resetting")  && ((cataRotation.get_angle()/100) < 80) && (cataClock > 200)) {
 catapultMode = "loading";
 } /*else if (catapultMode == "blocking" && master.get_digital(DIGITAL_L2)){
 catapultMode = "lowering";
@@ -548,17 +554,18 @@ catapultMode = "loading";
 }*/ else if (master.get_digital(DIGITAL_R1) && (autoLock == 0)){
 cataStart = 2;
 autoLock = 1;
-} else if (master.get_digital(DIGITAL_X) && (semiAutoLock == 0)){
+} else if (master.get_digital(DIGITAL_R2) && (semiAutoLock == 0)){
 cataStart = 3;
 semiAutoLock = 1;
 catapultMode = "waiting";
-} else if (master.get_digital(DIGITAL_UP) && (setFireLock == 0)){
+} 
+/* else if (master.get_digital(DIGITAL_UP) && (setFireLock == 0)){
 cataStart = 5;
 setFireLock = 1;
 catapultMode = "autofire";
 cataShots = 1;
 cataFired = 0;
-}  
+}  */ 
 
 } else if(cataStart == 2){
 catapultMode = "autofire";
@@ -568,7 +575,7 @@ autoLock = 1;
 }
 
 } else if (cataStart == 3){
-if ((catapultMode == "distancefire") && ( 87 >= (cataRotation.get_angle()/100)) &&  (cataClock > 200)){
+if ((catapultMode == "distancefire") && ( 75 >= (cataRotation.get_angle()/100)) &&  (cataClock > 200)){
 cataClock = 0;
 catapultMode = "waiting";
 
@@ -579,17 +586,17 @@ cataClock = 0;
 
 
 
-if(master.get_digital(DIGITAL_X) && (semiAutoLock == 0)){
+if(master.get_digital(DIGITAL_R2) && (semiAutoLock == 0)){
 cataStart = 0;
 semiAutoLock = 1;
 }
 
-if(master.get_digital(DIGITAL_X) && (semiAutoLock == 0)){
+if(master.get_digital(DIGITAL_R2) && (semiAutoLock == 0)){
 cataStart = 0;
 semiAutoLock = 1;
 }
 
-} else if (cataStart == 5){
+}/* else if (cataStart == 5){
 
 if(cataShots > cataFired){
 if((cataClock >= 300) && (cataRotation.get_angle()/100) >= 115){
@@ -613,10 +620,10 @@ setFireLock = 1;
 if(master.get_digital(DIGITAL_UP) && (setFireLock == 0)){
 cataShots++;
 setFireLock = 1;
-}
-
-
 } 
+
+
+} */
 
 
 
@@ -640,7 +647,7 @@ autoLock = 0;
 }
 
 
-if(!master.get_digital(DIGITAL_X)){
+if(!master.get_digital(DIGITAL_R2)){
 semiAutoLock = 0;
 }
 
@@ -671,7 +678,7 @@ catapult = 114;
 
     pros::lcd::print(2,"Catapult Shots: %d",  cataShots);
 
-		pros::lcd::print(3, "Catapult: %d",  cataRotation.get_angle()/100); 
+    pros::lcd::print(3, "Cata Angle %d", cataRotation.get_angle()/100);
     
 		pros::lcd::print(4, "Distance: %d", cataDistance.get()); 
 

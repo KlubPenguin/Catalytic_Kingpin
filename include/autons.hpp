@@ -3,16 +3,20 @@
 extern Drive chassis;
 
 void drive_example();
-
 //DRIVE PID FUNCTIONS
 void default_constants();
 
-void blocker_constants();
+void hang_constants();
 void small_error_constants();
 void modified_exit_conditions();
+void ram_conditions();
 
+const int DRIVE_SPEED = 110;
+const int SWING_SPEED = 110;
+const int TURN_SPEED = 90;
 //CHECKS DRIVE AND TURN FUNCTIONS TO THE BRAIN
 void imuChecker();
+
 
 
 //OTHER ROBOT FUNCTIONS
@@ -20,8 +24,8 @@ void intakeFWDSpin();
 void intakeBACKSpin();
 void intakeSpin(int distance, string direction);
 
-int blockerUp();
-int blockerDown();
+int hangUp();
+int hangDown();
 
 int wingsIn();
 int wingsOut();
@@ -29,6 +33,13 @@ int leftWingIn();
 int leftWingOut();
 int rightWingIn();
 int rightWingOut();
+
+int backWingsIn();
+int backWingsOut();
+int backLWingIn();
+int backLeftWingOut();
+int backLightWingIn();
+int backRightWingOut();
 
 int catapultLower();
 void catapultFire(int shots);
